@@ -8,7 +8,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.logging.Logger;
 
 public class Config {
 
@@ -17,10 +16,11 @@ public class Config {
     public static int Port;
     public static String LoginServerName;
     public static String AuthKey;
-    private static final Logger logger = PluginMain.instance.getLogger();
 
     public static void load() {
+
         File dataFolder = PluginMain.instance.getDataFolder();
+
         if (!dataFolder.exists()) {
             dataFolder.mkdir();
         }
@@ -43,14 +43,15 @@ public class Config {
             Port = config.getInt("Port");
             LoginServerName = config.getString("LoginServerName");
             AuthKey = config.getString("AuthKey");
-
-            // 合并日志输出
-            String logBuilder = "Host: " + Host + "\n" +
-                    "Port: " + Port + "\n" +
-                    "LoginServerName: " + LoginServerName;
-            logger.info(logBuilder);
+            PluginMain.instance.getLogger().info("Host:" + Host);
+            PluginMain.instance.getLogger().info("Port:" + Port);
+            PluginMain.instance.getLogger().info("LoginServerName:" + LoginServerName);
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+
     }
+
+
 }

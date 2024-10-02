@@ -1,21 +1,19 @@
 package cc.baka9.catseedlogin.bukkit.command;
 
-import java.util.Objects;
-
+import cc.baka9.catseedlogin.bukkit.CatSeedLogin;
+import cc.baka9.catseedlogin.bukkit.Config;
+import cc.baka9.catseedlogin.util.Crypt;
+import cc.baka9.catseedlogin.util.Util;
+import cc.baka9.catseedlogin.bukkit.database.Cache;
+import cc.baka9.catseedlogin.bukkit.object.LoginPlayer;
+import cc.baka9.catseedlogin.bukkit.object.LoginPlayerHelper;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-import cc.baka9.catseedlogin.bukkit.CatScheduler;
-import cc.baka9.catseedlogin.bukkit.CatSeedLogin;
-import cc.baka9.catseedlogin.bukkit.Config;
-import cc.baka9.catseedlogin.bukkit.database.Cache;
-import cc.baka9.catseedlogin.bukkit.object.LoginPlayer;
-import cc.baka9.catseedlogin.bukkit.object.LoginPlayerHelper;
-import cc.baka9.catseedlogin.util.Crypt;
-import cc.baka9.catseedlogin.util.Util;
+import java.util.Objects;
 
 public class CommandChangePassword implements CommandExecutor {
     @Override
@@ -24,9 +22,6 @@ public class CommandChangePassword implements CommandExecutor {
             return false;
         }
         String name = sender.getName();
-        if (Config.Settings.BedrockLoginBypass && LoginPlayerHelper.isFloodgatePlayer((Player) sender)){
-            return true;
-        }
         LoginPlayer lp = Cache.getIgnoreCase(name);
         if (lp == null) {
             sender.sendMessage(Config.Language.CHANGEPASSWORD_NOREGISTER);
@@ -45,7 +40,7 @@ public class CommandChangePassword implements CommandExecutor {
             sender.sendMessage(Config.Language.CHANGEPASSWORD_PASSWORD_CONFIRM_FAIL);
             return true;
         }
-        if (Util.passwordIsDifficulty(args[1])) {
+        if (!Util.passwordIsDifficulty(args[1])) {
             sender.sendMessage(Config.Language.COMMON_PASSWORD_SO_SIMPLE);
             return true;
         }
@@ -60,7 +55,7 @@ public class CommandChangePassword implements CommandExecutor {
                 CatSeedLogin.sql.edit(lp);
                 LoginPlayerHelper.remove(lp);
 
-                CatScheduler.runTask(() -> {
+                Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> {
                     Player player = Bukkit.getPlayer(((Player) sender).getUniqueId());
                     if (player != null && player.isOnline()) {
                         player.sendMessage(Config.Language.CHANGEPASSWORD_SUCCESS);

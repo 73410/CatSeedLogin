@@ -1,20 +1,16 @@
 package cc.baka9.catseedlogin.bungee;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.Connection;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.event.ChatEvent;
-import net.md_5.bungee.api.event.PlayerDisconnectEvent;
-import net.md_5.bungee.api.event.PreLoginEvent;
-import net.md_5.bungee.api.event.ServerConnectEvent;
-import net.md_5.bungee.api.event.ServerConnectedEvent;
+import net.md_5.bungee.api.event.*;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.event.EventHandler;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Bungee Cord 监听事件类
@@ -23,7 +19,7 @@ public class Listeners implements Listener {
 
     private final ProxyServer proxyServer = ProxyServer.getInstance();
 
-    private final List<String> loggedInPlayerList = new CopyOnWriteArrayList<>();
+    private final List<String> loggedInPlayerList = new ArrayList<>();
 
     /**
      * 登录之前不能输入bc指令
@@ -34,45 +30,62 @@ public class Listeners implements Listener {
         if (!event.isProxyCommand() || !(sender instanceof ProxiedPlayer)) return;
         ProxiedPlayer proxiedPlayer = (ProxiedPlayer) sender;
         String message = event.getMessage();
+        boolean loggedIn;
         String playerName = proxiedPlayer.getName();
-
-        if (!loggedInPlayerList.contains(playerName)) {
+        synchronized (loggedInPlayerList) {
+            loggedIn = loggedInPlayerList.contains(playerName);
+        }
+        if (!loggedIn) {
             event.setCancelled(true);
 
             PluginMain.runAsync(() -> {
                 if (Communication.sendConnectRequest(playerName) == 1) {
-                    loggedInPlayerList.add(playerName);
-                    proxyServer.getPluginManager().dispatchCommand(proxiedPlayer, message.substring(1));
+                    synchronized (loggedInPlayerList) {
+                        loggedInPlayerList.add(playerName);
+                    }
+                    PluginMain.instance.getProxy().getPluginManager().dispatchCommand(proxiedPlayer, message.substring(1));
                 }
             });
         }
+
+
     }
 
     /**
      * 玩家切换子服时，检查bc端该玩家的登录状态，
-     * 如果没有登录，在登录服获取登录状态后更新bc端该玩家的登录状态，
-     * 如果登录服依然未登录，强制切换目标服务器为登录服
+     * 如果没有登录，就请求登录服获取登录状态然后更新bc端该玩家的登录状态，
+     * 如果登录服获取结果还是没有登录，就强制把切换目标服务器改为登录服
      */
     @EventHandler
     public void onServerConnect(ServerConnectEvent event) {
         ServerInfo target = event.getTarget();
         if (event.isCancelled() || target.getName().equals(Config.LoginServerName)) return;
         ProxiedPlayer player = event.getPlayer();
-
-        if (!loggedInPlayerList.contains(player.getName())) {
+        boolean loggedIn;
+        synchronized (loggedInPlayerList) {
+            loggedIn = loggedInPlayerList.contains(player.getName());
+        }
+        if (!loggedIn) {
             PluginMain.runAsync(() -> {
                 if (Communication.sendConnectRequest(player.getName()) == 1) {
-                    loggedInPlayerList.add(player.getName());
-                    player.connect(target);
+                    synchronized (loggedInPlayerList) {
+                        loggedInPlayerList.add(player.getName());
+                        player.connect(target);
+                    }
                 }
             });
 
             event.setTarget(proxyServer.getServerInfo(Config.LoginServerName));
+
+
         }
+
     }
 
+
     /**
-     * 玩家切换到登录服务之后，如果bc端已登录模式，使用登录状态更新子服务器登录状态，避免玩家需要重新登录
+     * 玩家切换到登录服务之后，如果bc端是已登录的状态，就使用bc端的登录状态去更新子服的登录状态，
+     * 避免使玩家每次切换到登录服时需要重新进行登录
      */
     @EventHandler
     public void onServerConnected(ServerConnectedEvent event) {
@@ -81,39 +94,49 @@ public class Listeners implements Listener {
             String playerName = player.getName();
 
             PluginMain.runAsync(() -> {
-                if (loggedInPlayerList.contains(playerName)) {
+                boolean loggedIn;
+                synchronized (loggedInPlayerList) {
+                    loggedIn = loggedInPlayerList.contains(playerName);
+                }
+                if (loggedIn) {
                     Communication.sendKeepLoggedInRequest(playerName);
                 }
+
             });
         }
+
     }
 
     /**
-     * 玩家离线时，从bc端删除玩家的登录状态
+     * 玩家离线时，删除玩家在bc端的登录状态
      */
     @EventHandler
     public void onPlayerDisconnect(PlayerDisconnectEvent event) {
         ProxiedPlayer player = event.getPlayer();
         String playerName = player.getName();
-        loggedInPlayerList.remove(playerName);
+        PluginMain.runAsync(() -> {
+            synchronized (loggedInPlayerList) {
+                loggedInPlayerList.remove(playerName);
+            }
+        });
     }
 
     /**
-     * 玩家在登录前，检查bc端和子服务器的登录状态，如果任一已登录，阻止连接
+     * 玩家在登录之前，检查bc端和子服的登录状态，如果是其中一项是已登录，则禁止连接
      */
-        @EventHandler
+    @EventHandler
     public void onPreLogin(PreLoginEvent event) {
         String playerName = event.getConnection().getName();
-        try {
-            if (loggedInPlayerList.contains(playerName) || Communication.sendConnectRequest(playerName) == 1) {
-                event.setCancelReason(new TextComponent("您已经登录，请勿重复登录。"));
-                event.setCancelled(true);
-            }
-        } catch (Exception e) {
-            event.setCancelReason(new TextComponent("发生错误，请稍后再试。"));
-            event.setCancelled(true);
-            e.printStackTrace();
+        boolean loggedIn;
+        synchronized (loggedInPlayerList) {
+            loggedIn = loggedInPlayerList.contains(playerName);
         }
+        if (loggedIn || Communication.sendConnectRequest(playerName) == 1) {
+            event.setCancelReason(new TextComponent(""));
+            event.setCancelled(true);
+        }
+
     }
+
 
 }

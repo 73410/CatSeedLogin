@@ -2,14 +2,13 @@ name: CatSeedLogin
 main: cc.baka9.catseedlogin.bukkit.CatSeedLogin
 author: CatSeed
 version: ${version}
-softdepend: [Multiverse-Core, Citizens, Essentials, EssentialsSpawn, ProtocolLib, floodgate]
-api-version: 1.13
-folia-supported: true
+softdepend: [Multiverse-Core, Citizens, Essentials, EssentialsSpawn, ProtocolLib]
+api-version: 1.19
 commands:
   login:
     description: 使用密码登录
     usage: /<command> 密码
-    aliases: [l]
+    aliases: [l , i]
   register:
     description: 注册密码
     usage: /<command> 密码 重复密码
@@ -21,6 +20,15 @@ commands:
       /<command> set 邮箱
       /<command> verify 验证码
     aliases: [bdmail]
+  binduuid:
+    description: 绑定uuid
+    aliases: [bdid]
+  adduuid:
+    description: 添加uuid
+    aliases: [addid]
+  emailcheck:
+    description: 检查邮件
+    aliases: [emc]
   resetpassword:
     description: 忘记密码,重置密码
     usage:
@@ -47,8 +55,6 @@ commands:
       §b/<command> setAutoKick [秒数] §9设置自动踢出未登录的玩家 (默认120秒，小于1秒则关闭此功能)
       §b/<command> setSpawnLocation §9设置玩家登陆地点为你站着的位置 (默认登陆地点为world世界的出生点)
       §c/<command> limitChineseID  §9打开/关闭 限制中文游戏名 (默认打开)
-      §c/<command> bedrockLoginBypass §9打开/关闭 基岩版登录跳过 (默认打开)
-      §c/<command> LoginwiththesameIP §9打开/关闭 同IP登录跳过 (默认关闭)
       §c/<command> beforeLoginNoDamage §9打开/关闭 登陆之前是否受到伤害 (默认登陆之前不受到伤害)
       §c/<command> afterLoginBack §9打开/关闭 登陆之后是否返回退出地点 (默认打开)
       §c/<command> canTpSpawnLocation §9打开/关闭 登录之前是否强制在登陆地点 (默认打开)
@@ -58,3 +64,9 @@ commands:
       §3/<command> reload §9重载配置文件
     aliases: [cslogin]
     permission: catseedlogin.command.catseedlogin
+permissions:
+  catseedlogin.command.adduuid:
+    description: 添加uuid
+    default: op
+libraries:
+  - com.squareup.okhttp3:okhttp:4.12.0

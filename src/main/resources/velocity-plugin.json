@@ -1,0 +1,9 @@
+{
+  "id": "catseedlogin",
+  "name": "CatSeedLogin",
+  "version": "1.0.0",
+  "authors": ["CatSeed"],
+  "description": "A login plugin for Velocity",
+  "main": "cc.baka9.catseedlogin.velocity.PluginMain",
+  "dependencies": []
+}

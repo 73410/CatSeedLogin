@@ -1,48 +1,31 @@
 package cc.baka9.catseedlogin.bukkit;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.bukkit.Bukkit;
-import org.bukkit.command.PluginCommand;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
-
-import cc.baka9.catseedlogin.bukkit.command.CommandBindEmail;
-import cc.baka9.catseedlogin.bukkit.command.CommandCatSeedLogin;
-import cc.baka9.catseedlogin.bukkit.command.CommandChangePassword;
-import cc.baka9.catseedlogin.bukkit.command.CommandLogin;
-import cc.baka9.catseedlogin.bukkit.command.CommandRegister;
-import cc.baka9.catseedlogin.bukkit.command.CommandResetPassword;
+import cc.baka9.catseedlogin.bukkit.command.*;
 import cc.baka9.catseedlogin.bukkit.database.Cache;
 import cc.baka9.catseedlogin.bukkit.database.MySQL;
 import cc.baka9.catseedlogin.bukkit.database.SQL;
 import cc.baka9.catseedlogin.bukkit.database.SQLite;
 import cc.baka9.catseedlogin.bukkit.object.LoginPlayerHelper;
 import cc.baka9.catseedlogin.bukkit.task.Task;
-import cn.handyplus.lib.adapter.HandySchedulerUtil;
-import space.arim.morepaperlib.MorePaperLib;
+import org.bukkit.Bukkit;
+import org.bukkit.command.PluginCommand;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitScheduler;
 
-public class CatSeedLogin extends JavaPlugin implements Listener {
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+
+public class CatSeedLogin extends JavaPlugin {
 
     public static CatSeedLogin instance;
+    public static BukkitScheduler scheduler = Bukkit.getScheduler();
     public static SQL sql;
     public static boolean loadProtocolLib = false;
-    public static MorePaperLib morePaperLib;
-    private LoginPlayerHelper timeoutManager;
 
     @Override
     public void onEnable(){
         instance = this;
-        morePaperLib = new MorePaperLib(this);
-        HandySchedulerUtil.init(this);
-        getServer().getPluginManager().registerEvents(this, this);
-        timeoutManager = new LoginPlayerHelper();
         //Config
         try {
             Config.load();
@@ -65,24 +48,17 @@ public class CatSeedLogin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new Listeners(), this);
 
         //ProtocolLibListeners
-        if (Config.Settings.Emptybackpack) {
-            try {
-                Class.forName("com.comphenix.protocol.ProtocolLib");
-                ProtocolLibListeners.enable();
-                loadProtocolLib = true;
-            } catch (ClassNotFoundException e) {
-                getLogger().warning("服务器没有装载ProtocolLib插件，这将无法使用登录前隐藏背包");
-            }
+        try {
+            Class.forName("com.comphenix.protocol.ProtocolLib");
+            ProtocolLibListeners.enable();
+            loadProtocolLib = true;
+        } catch (ClassNotFoundException e) {
+            getLogger().warning("服务器没有装载ProtocolLib插件，这将无法使用登录前隐藏背包");
         }
 
         // bc
         if (Config.BungeeCord.Enable) {
             Communication.socketServerStartAsync();
-        }
-
-        // Floodgate
-        if (Bukkit.getPluginManager().getPlugin("floodgate") != null && Config.Settings.BedrockLoginBypass){
-            getLogger().info("检测到floodgate，基岩版兼容已装载");
         }
 
         //Commands
@@ -133,24 +109,16 @@ public class CatSeedLogin extends JavaPlugin implements Listener {
         PluginCommand catseedlogin = getServer().getPluginCommand("catseedlogin");
         catseedlogin.setExecutor(new CommandCatSeedLogin());
 
+
+        getCommand("binduuid").setExecutor(new bind_uuid());
+        getCommand("binduuid").setTabCompleter(new bind_uuid());
+        getCommand("adduuid").setExecutor(new add_uuid());
+        getCommand("adduuid").setTabCompleter(new add_uuid());
+        getCommand("emailcheck").setExecutor(new emailcheck());
+        getCommand("emailcheck").setTabCompleter(new emailcheck());
         //Task
         Task.runAll();
 
-    }
-
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        timeoutManager.onPlayerQuit(event.getPlayer().getName());
-    }
-
-    @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                timeoutManager.recordPlayerExitTime(event.getPlayer().getName());
-            }
-        }.runTaskTimer(this, 0L, 20L);
     }
 
 
@@ -175,7 +143,7 @@ public class CatSeedLogin extends JavaPlugin implements Listener {
     }
 
     public void runTaskAsync(Runnable runnable){
-        CatScheduler.runTaskAsync(runnable);
+        scheduler.runTaskAsynchronously(this, runnable);
     }
 
 

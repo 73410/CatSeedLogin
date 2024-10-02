@@ -1,9 +1,6 @@
 IpRegisterCountLimit: 2
 IpCountLimit: 2
 LimitChineseID: true
-BedrockLoginBypass: true
-LoginwiththesameIP: false
-IPTimeout: 5
 MinLengthID: 2
 MaxLengthID: 15
 BeforeLoginNoDamage: true
@@ -16,7 +13,17 @@ CommandWhiteList:
   - /(?i)resetpassword?(\z| .*)
   - /(?i)repw?(\z| .*)
   - /(?i)worldedit cui
-AutoKick: 120
+  - /(?i)vote?(\z| .*)
+  - /(?i)i?(\z| .*)
+  - /(?i)bindemail(\z| .*)
+  - /(?i)bdmail(\z| .*)
+  - /(?i)binduuid(\z| .*)
+  - /(?i)bdid(\z| .*)
+  - /(?i)adduuid(\z| .*)
+  - /(?i)addid(\z| .*)
+
+CatSeedLogin-master:
+  jar:AutoKick: 120
 DeathStateQuitRecordLocation: true
-FloodgatePrefixProtect: true
-Emptybackpack: true
+IpWhitelist:
+  - 127.0.0.1

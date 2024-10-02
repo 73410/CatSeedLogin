@@ -1,14 +1,5 @@
 package cc.baka9.catseedlogin.bukkit.command;
 
-import java.util.Optional;
-
-import org.bukkit.Bukkit;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
-
-import cc.baka9.catseedlogin.bukkit.CatScheduler;
 import cc.baka9.catseedlogin.bukkit.CatSeedLogin;
 import cc.baka9.catseedlogin.bukkit.Config;
 import cc.baka9.catseedlogin.bukkit.database.Cache;
@@ -17,16 +8,30 @@ import cc.baka9.catseedlogin.bukkit.object.LoginPlayer;
 import cc.baka9.catseedlogin.bukkit.object.LoginPlayerHelper;
 import cc.baka9.catseedlogin.util.Mail;
 import cc.baka9.catseedlogin.util.Util;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
+
+import java.io.File;
+import java.util.Optional;
 
 public class CommandResetPassword implements CommandExecutor {
+    Plugin plugin = CatSeedLogin.getProvidingPlugin(CatSeedLogin.class);
+    File path = plugin.getDataFolder();
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String s, String[] args){
+        File re = new File(path, "reqw.yml");
+        FileConfiguration repw = YamlConfiguration.loadConfiguration(re);
         if (args.length == 0 || !(sender instanceof Player)) return false;
         Player player = (Player) sender;
         String name = player.getName();
-        if (Config.Settings.BedrockLoginBypass && LoginPlayerHelper.isFloodgatePlayer(player)){
-            return true;
-        }
         LoginPlayer lp = Cache.getIgnoreCase(name);
 
         if (lp == null) {
@@ -36,6 +41,11 @@ public class CommandResetPassword implements CommandExecutor {
         if (!Config.EmailVerify.Enable) {
             sender.sendMessage(Config.Language.RESETPASSWORD_EMAIL_DISABLE);
             return true;
+        }
+        if(!repw.getBoolean(sender.getName())){
+            sender.sendMessage(ChatColor.RED+"你在绑定邮箱后为进行登录，无法直接重置密码");
+            sender.sendMessage(ChatColor.YELLOW+"请联系管理员进行重置");
+            return false;
         }
         //command forget
         if (args[0].equalsIgnoreCase("forget")) {
@@ -51,17 +61,13 @@ public class CommandResetPassword implements CommandExecutor {
                     sender.sendMessage(Config.Language.RESETPASSWORD_EMAIL_SENDING_MESSAGE.replace("{email}", lp.getEmail()));
                     CatSeedLogin.instance.runTaskAsync(() -> {
                         try {
-                            if (emailCode != null) {
-                                Mail.sendMail(emailCode.getEmail(), "重置密码",
-                                        "你的验证码是 <strong>" + emailCode.getCode() + "</strong>" +
-                                                "<br/>在服务器中使用帐号 " + name + " 输入指令<strong>/resetpassword re " + emailCode.getCode() + " 新密码</strong> 来重置新密码" +
-                                                "<br/>此验证码有效期为 " + (emailCode.getDurability() / (1000 * 60)) + "分钟");
-                            }
-                            Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> {
-                                if (emailCode != null) {
-                                    sender.sendMessage(Config.Language.RESETPASSWORD_EMAIL_SENT_MESSAGE.replace("{email}", emailCode.getEmail()));
-                                }
-                            });
+                            Mail.sendMail(emailCode.getEmail(), "重置密码",
+                                    "你的验证码是 <strong>" + emailCode.getCode() + "</strong>" +
+                                            "<br/>在服务器中使用帐号 " + name + " 输入指令<strong>/resetpassword re " + emailCode.getCode() + " 新密码</strong> 来重置新密码" +
+                                            "<br/>此验证码有效期为 " + (emailCode.getDurability() / (1000 * 60)) + "分钟" +
+                                            "<br/>如有疑问请请邮箱admin@mcpcc.fun");
+                            Bukkit.getScheduler().runTask(CatSeedLogin.instance, () ->
+                                    sender.sendMessage(Config.Language.RESETPASSWORD_EMAIL_SENT_MESSAGE.replace("{email}", emailCode.getEmail())));
                         } catch (Exception e) {
                             Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> sender.sendMessage(Config.Language.RESETPASSWORD_EMAIL_WARN));
                             e.printStackTrace();
@@ -82,7 +88,7 @@ public class CommandResetPassword implements CommandExecutor {
                     String code = args[1], pwd = args[2];
 
                     if (emailCode.getCode().equals(code)) {
-                        if (Util.passwordIsDifficulty(pwd)) {
+                        if (!Util.passwordIsDifficulty(pwd)) {
                             sender.sendMessage(Config.Language.COMMON_PASSWORD_SO_SIMPLE);
                             return true;
                         }
@@ -94,12 +100,12 @@ public class CommandResetPassword implements CommandExecutor {
                                 CatSeedLogin.sql.edit(lp);
                                 LoginPlayerHelper.remove(lp);
                                 EmailCode.removeByName(name, EmailCode.Type.ResetPassword);
-                                CatScheduler.runTask(() -> {
+                                Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> {
                                     Player p = Bukkit.getPlayer(lp.getName());
                                     if (p != null && p.isOnline()) {
                                         if (Config.Settings.CanTpSpawnLocation) {
-                                            // PlayerTeleport.teleport(p, Config.Settings.SpawnLocation);
-                                            CatScheduler.teleport(p,Config.Settings.SpawnLocation);
+//                                            PlayerTeleport.teleport(p, Config.Settings.SpawnLocation);
+                                            p.teleport(Config.Settings.SpawnLocation);
                                         }
                                         p.sendMessage(Config.Language.RESETPASSWORD_SUCCESS);
                                         if (CatSeedLogin.loadProtocolLib) {
@@ -109,7 +115,7 @@ public class CommandResetPassword implements CommandExecutor {
 
                                 });
                             } catch (Exception e) {
-                                CatScheduler.runTask( () -> sender.sendMessage("§c数据库异常!"));
+                                Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> sender.sendMessage("§c数据库异常!"));
                                 e.printStackTrace();
                             }
 

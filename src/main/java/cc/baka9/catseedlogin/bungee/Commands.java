@@ -6,7 +6,6 @@ public class Commands extends net.md_5.bungee.api.plugin.Command {
 
     public Commands(String name, String permission, String... aliases) {
         super(name, permission, aliases);
-        Config.load(); // 加载配置
     }
 
     @Override

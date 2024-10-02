@@ -1,22 +1,21 @@
 package cc.baka9.catseedlogin.bukkit.task;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-
 import cc.baka9.catseedlogin.bukkit.Config;
 import cc.baka9.catseedlogin.bukkit.database.Cache;
 import cc.baka9.catseedlogin.bukkit.object.LoginPlayerHelper;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class TaskAutoKick extends Task {
-    public Map<String, Long> playerJoinTime = new ConcurrentHashMap<>();
+    public Map<String, Long> playerJoinTime = new HashMap<>();
 
     @Override
     public void run(){
         if (!Cache.isLoaded || Config.Settings.AutoKick < 1) return;
-        long autoKickMs = Config.Settings.AutoKick * 1000L;
+        long autoKickMs = Config.Settings.AutoKick * 1000;
         long now = System.currentTimeMillis();
         for (Player player : Bukkit.getOnlinePlayers()) {
             String playerName = player.getName();

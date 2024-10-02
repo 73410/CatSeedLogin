@@ -1,21 +1,19 @@
 package cc.baka9.catseedlogin.bukkit.task;
 
+import cc.baka9.catseedlogin.bukkit.CatSeedLogin;
+import org.bukkit.scheduler.BukkitTask;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import cc.baka9.catseedlogin.bukkit.CatScheduler;
-import cc.baka9.catseedlogin.bukkit.CatSeedLogin;
-import space.arim.morepaperlib.scheduling.ScheduledTask;
-
 public abstract class Task implements Runnable {
-    private static final List<ScheduledTask> scheduledTasks = new ArrayList<>();
-    private static final CatSeedLogin plugin = CatSeedLogin.instance;
     protected Task(){
     }
 
     private static TaskAutoKick taskAutoKick;
     private static TaskSendLoginMessage taskSendLoginMessage;
+    private static List<BukkitTask> bukkitTaskList = new ArrayList<>();
 
     public static TaskAutoKick getTaskAutoKick(){
         if (taskAutoKick == null) {
@@ -33,15 +31,16 @@ public abstract class Task implements Runnable {
 
     }
 
+    private static CatSeedLogin plugin = CatSeedLogin.instance;
 
     public static void runAll(){
-        runTaskTimer(Task.getTaskSendLoginMessage(), 20 * 5);
+        runTaskTimer(Task.getTaskSendLoginMessage(), 20 * 10);
         runTaskTimer(Task.getTaskAutoKick(), 20 * 5);
 
     }
 
     public static void cancelAll(){
-        Iterator<ScheduledTask> iterator = scheduledTasks.iterator();
+        Iterator<BukkitTask> iterator = bukkitTaskList.iterator();
         while (iterator.hasNext()) {
             iterator.next().cancel();
             iterator.remove();
@@ -50,7 +49,7 @@ public abstract class Task implements Runnable {
     }
 
     public static void runTaskTimer(Runnable runnable, long l){
-        scheduledTasks.add(CatScheduler.runTaskTimer(runnable, 0, l));
+        bukkitTaskList.add(plugin.getServer().getScheduler().runTaskTimer(plugin, runnable, 0, l));
 
     }
 }

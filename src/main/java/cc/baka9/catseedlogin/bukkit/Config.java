@@ -1,22 +1,5 @@
 package cc.baka9.catseedlogin.bukkit;
 
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -24,6 +7,14 @@ import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+
+import java.io.*;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * 加载/保存/重载 yml配置文件
@@ -34,8 +25,8 @@ import org.bukkit.entity.Player;
  * sql.yml 数据库
  */
 public class Config {
-    private static final CatSeedLogin plugin = CatSeedLogin.instance;
-    private static final Map<String, String> offlineLocations = new ConcurrentHashMap<>();
+    private static CatSeedLogin plugin = CatSeedLogin.instance;
+    private static Map<String, String> offlineLocations = new HashMap<>();
 
     /**
      * 数据库
@@ -83,10 +74,6 @@ public class Config {
         public static int IpCountLimit;
         public static Location SpawnLocation;
         public static boolean LimitChineseID;
-        public static boolean BedrockLoginBypass;
-        public static boolean LoginwiththesameIP;
-        public static boolean Emptybackpack;
-        public static int IPTimeout;
         public static int MaxLengthID;
         public static int MinLengthID;
         public static boolean BeforeLoginNoDamage;
@@ -95,9 +82,9 @@ public class Config {
         public static boolean CanTpSpawnLocation;
         public static List<Pattern> CommandWhiteList = new ArrayList<>();
         public static int AutoKick;
+        public static List<String> IpWhitelist = new ArrayList<>();
         // 死亡状态退出游戏是否记录退出位置 (玩家可以通过死亡时退出服务器然后重新进入，再复活，登录返回死亡地点)
         public static boolean DeathStateQuitRecordLocation;
-        public static boolean FloodgatePrefixProtect;
 
         public static void load(){
             FileConfiguration config = getConfig("settings.yml");
@@ -107,26 +94,21 @@ public class Config {
             IpCountLimit = config.getInt("IpCountLimit", resourceConfig.getInt("IpCountLimit"));
             LimitChineseID = config.getBoolean("LimitChineseID", resourceConfig.getBoolean("LimitChineseID"));
             MinLengthID = config.getInt("MinLengthID", resourceConfig.getInt("MinLengthID"));
-            BedrockLoginBypass = config.getBoolean("BedrockLoginBypass", resourceConfig.getBoolean("BedrockLoginBypass"));
-            LoginwiththesameIP = config.getBoolean("LoginwiththesameIP", resourceConfig.getBoolean("LoginwiththesameIP"));
-            Emptybackpack = config.getBoolean("Emptybackpack", resourceConfig.getBoolean("Emptybackpack"));
             MaxLengthID = config.getInt("MaxLengthID", resourceConfig.getInt("MaxLengthID"));
             BeforeLoginNoDamage = config.getBoolean("BeforeLoginNoDamage", resourceConfig.getBoolean("BeforeLoginNoDamage"));
             ReenterInterval = config.getLong("ReenterInterval", resourceConfig.getLong("ReenterInterval"));
             AfterLoginBack = config.getBoolean("AfterLoginBack", resourceConfig.getBoolean("AfterLoginBack"));
             CanTpSpawnLocation = config.getBoolean("CanTpSpawnLocation", resourceConfig.getBoolean("CanTpSpawnLocation"));
             List<String> commandWhiteList = config.getStringList("CommandWhiteList");
-            if (commandWhiteList.isEmpty()) {
+            if (commandWhiteList.size() == 0) {
                 commandWhiteList = resourceConfig.getStringList("CommandWhiteList");
             }
             Settings.CommandWhiteList.clear();
             Settings.CommandWhiteList.addAll(commandWhiteList.stream().map(Pattern::compile).collect(Collectors.toList()));
             AutoKick = config.getInt("AutoKick", 120);
-            IPTimeout = config.getInt("IPTimeout", 5);
             SpawnLocation = str2Location(config.getString("SpawnLocation"));
             DeathStateQuitRecordLocation = config.getBoolean("DeathStateQuitRecordLocation", resourceConfig.getBoolean("DeathStateQuitRecordLocation"));
-            FloodgatePrefixProtect = config.getBoolean("FloodgatePrefixProtect", resourceConfig.getBoolean("FloodgatePrefixProtect"));
-
+            IpWhitelist = config.getStringList("IpWhitelist");
 
         }
 
@@ -136,10 +118,6 @@ public class Config {
             config.set("IpCountLimit", IpCountLimit);
             config.set("SpawnWorld", null);
             config.set("LimitChineseID", LimitChineseID);
-            config.set("BedrockLoginBypass",BedrockLoginBypass);
-            config.set("LoginwiththesameIP",LoginwiththesameIP);
-            config.set("Emptybackpack",Emptybackpack);
-            config.set("IPTimeout", IPTimeout);
             config.set("MinLengthID", MinLengthID);
             config.set("MaxLengthID", MaxLengthID);
             config.set("BeforeLoginNoDamage", BeforeLoginNoDamage);
@@ -150,7 +128,6 @@ public class Config {
             config.set("SpawnLocation", loc2String(SpawnLocation));
             config.set("CommandWhiteList", CommandWhiteList.stream().map(Pattern::toString).collect(Collectors.toList()));
             config.set("DeathStateQuitRecordLocation", DeathStateQuitRecordLocation);
-            config.set("FloodgatePrefixProtect", FloodgatePrefixProtect);
             try {
                 config.save(new File(CatSeedLogin.instance.getDataFolder(), "settings.yml"));
             } catch (IOException e) {
@@ -192,8 +169,6 @@ public class Config {
         public static String CHANGEPASSWORD_SUCCESS;
         public static String AUTO_KICK;
         public static String REGISTER_MORE;
-        public static String BEDROCK_LOGIN_BYPASS;
-        public static String LOGIN_WITH_THE_SAME_IP;
 
         public static void load(){
             FileConfiguration resourceConfig = getResourceConfig("language.yml");
@@ -217,24 +192,16 @@ public class Config {
     public static class EmailVerify {
 
         public static boolean Enable;
-        public static String EmailAccount;
-        public static String EmailPassword;
-        public static String EmailSmtpHost;
-        public static String EmailSmtpPort;
-        public static boolean SSLAuthVerify;
         public static String FromPersonal;
-
+        public static String api;
+        public static int MaxAccountsPerEmail;
 
         public static void load(){
             FileConfiguration config = getConfig("emailVerify.yml");
             Enable = config.getBoolean("Enable");
-            EmailAccount = config.getString("EmailAccount");
-            EmailPassword = config.getString("EmailPassword");
-            EmailSmtpHost = config.getString("EmailSmtpHost");
-            EmailSmtpPort = config.getString("EmailSmtpPort");
-            SSLAuthVerify = config.getBoolean("SSLAuthVerify");
             FromPersonal = config.getString("FromPersonal");
-
+            api = config.getString("api");
+            MaxAccountsPerEmail = config.getInt("MaxAccountsPerEmail");
         }
 
     }
@@ -311,53 +278,29 @@ public class Config {
 
     }
     // 位置转成字符串
-    private static String loc2String(Location loc) {
-    try {
-        return String.format("%s:%.2f:%.2f:%.2f:%.2f:%.2f",
-                             loc.getWorld().getName(),
-                             loc.getX(),
-                             loc.getY(),
-                             loc.getZ(),
-                             loc.getYaw(),
-                             loc.getPitch());
-    } catch (Exception e) {
-        // 记录错误日志
-        e.printStackTrace();
-        // 使用默认世界的出生点位置
-        Location defaultLoc = getDefaultWorld().getSpawnLocation();
-        return String.format("%s:%.2f:%.2f:%.2f:%.2f:%.2f",
-                             defaultLoc.getWorld().getName(),
-                             defaultLoc.getX(),
-                             defaultLoc.getY(),
-                             defaultLoc.getZ(),
-                             defaultLoc.getYaw(),
-                             defaultLoc.getPitch());
-    }
-}
+    private static String loc2String(Location loc){
+        try {
+            return loc.getWorld().getName() + ":" + loc.getX() + ":" + loc.getY() + ":" + loc.getZ() + ":" + loc.getYaw() + ":" + loc.getPitch();
+        } catch (Exception ignored) {
+            loc = getDefaultWorld().getSpawnLocation();
+        }
+        return loc.getWorld().getName() + ":" + loc.getX() + ":" + loc.getY() + ":" + loc.getZ() + ":" + loc.getYaw() + ":" + loc.getPitch();
 
+    }
 
     // 获取默认世界
-    private static World getDefaultWorld() {
-    File serverPropertiesFile = new File("server.properties");
-    if (!serverPropertiesFile.exists()) {
+    private static World getDefaultWorld(){
+        try (InputStream is = new BufferedInputStream(Files.newInputStream(new File("server.properties").toPath()))) {
+            Properties properties = new Properties();
+            properties.load(is);
+            String worldName = properties.getProperty("level-name");
+            return Bukkit.getWorld(worldName);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return Bukkit.getWorlds().get(0);
     }
-
-    try (InputStream is = new BufferedInputStream(Files.newInputStream(serverPropertiesFile.toPath()))) {
-        Properties properties = new Properties();
-        properties.load(is);
-        String worldName = properties.getProperty("level-name");
-        World world = Bukkit.getWorld(worldName);
-        if (world != null) {
-            return world;
-        }
-    } catch (IOException e) {
-        e.printStackTrace();
-    }
-
-    return Bukkit.getWorlds().get(0);
-}
-
 
 
 }

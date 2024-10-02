@@ -1,13 +1,5 @@
 package cc.baka9.catseedlogin.bukkit.command;
 
-import java.util.Optional;
-
-import org.bukkit.Bukkit;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
-
 import cc.baka9.catseedlogin.bukkit.CatSeedLogin;
 import cc.baka9.catseedlogin.bukkit.Config;
 import cc.baka9.catseedlogin.bukkit.database.Cache;
@@ -16,26 +8,27 @@ import cc.baka9.catseedlogin.bukkit.object.LoginPlayer;
 import cc.baka9.catseedlogin.bukkit.object.LoginPlayerHelper;
 import cc.baka9.catseedlogin.util.Mail;
 import cc.baka9.catseedlogin.util.Util;
+import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
+
+import java.util.Optional;
+
 
 public class CommandBindEmail implements CommandExecutor {
-
+    Plugin plugin = CatSeedLogin.getProvidingPlugin(CatSeedLogin.class);
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String s, String[] args) {
+    public boolean onCommand(CommandSender sender, Command command, String s, String[] args){
         if (args.length == 0 || !(sender instanceof Player)) return false;
         Player player = (Player) sender;
         String name = player.getName();
-
-        if (Config.Settings.BedrockLoginBypass && LoginPlayerHelper.isFloodgatePlayer(player)) {
-            return true;
-        }
-
         LoginPlayer lp = Cache.getIgnoreCase(name);
+
         if (lp == null) {
             sender.sendMessage("§c你还未注册!");
-            return true;
-        }
-        if (!LoginPlayerHelper.isLogin(name)) {
-            sender.sendMessage("§c你还未登陆!");
             return true;
         }
         if (!Config.EmailVerify.Enable) {
@@ -49,15 +42,40 @@ public class CommandBindEmail implements CommandExecutor {
                 sender.sendMessage("§c你已经绑定过邮箱了!");
             } else {
                 String mail = args[1];
-                if (Util.checkMail(mail)) {
-                    Optional<EmailCode> bindEmailOptional = EmailCode.getByName(name, EmailCode.Type.Bind);
-                    if (bindEmailOptional.isPresent() && bindEmailOptional.get().getEmail().equals(mail)) {
-                        sender.sendMessage("§c已经向 " + mail + " 邮箱中发送验证码，请不要重复此操作");
-                    } else {
-                        EmailCode bindEmail = EmailCode.create(name, mail, 1000 * 60 * 20, EmailCode.Type.Bind);
-                        sender.sendMessage("§6向邮箱发送验证码中...");
-                        sendEmailCode(sender, name, mail, bindEmail);
+                Optional<EmailCode> bindEmailOptional = EmailCode.getByName(name, EmailCode.Type.Bind);
+                if (bindEmailOptional.isPresent() && bindEmailOptional.get().getEmail().equals(mail)) {
+                    sender.sendMessage("§c已经向 " + mail + " 邮箱中发送验证码，请不要重复此操作");
+
+                } else if (Util.checkMail(mail)) {
+                    //创建有效期为20分钟的验证码
+                    int count = Cache.getCountByEmail(mail);
+                    if (count >= Config.EmailVerify.MaxAccountsPerEmail) {
+                        sender.sendMessage("§c该邮箱绑定的账号数量已达到上限 (" + Config.EmailVerify.MaxAccountsPerEmail + ")，无法绑定新账号!");
+                        plugin.getLogger().warning(name+"邮箱绑定的账号数量已达到上限");
+                        return true;
                     }
+
+                    EmailCode bindEmail = EmailCode.create(name, mail, 1000 * 60 * 20, EmailCode.Type.Bind);
+                    sender.sendMessage("§6向邮箱发送验证码中...");
+                    CatSeedLogin.instance.runTaskAsync(() -> {
+                        try {
+                            Mail.sendMail(mail, "pcc服务器邮箱绑定",
+                                    "你的验证码是 <strong>" + bindEmail.getCode() + "</strong>" +
+                                            "<br/>在服务器中使用帐号 " + name + " 输入指令<strong>/bindemail verify " + bindEmail.getCode() + "</strong> 来绑定邮箱" +
+                                            "<br/>绑定邮箱之后可用于忘记密码时重置自己的密码" +
+                                            "<br/>此验证码有效期为 " + (bindEmail.getDurability() / (1000 * 60)) + "分钟" +
+                                            "<br/><br/>如有疑问请邮箱 admin@mcpcc.fun");
+                            Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> {
+                                sender.sendMessage("§6已经向邮箱 " + mail + " 发送了一串绑定验证码，请检查你的邮箱的收件箱");
+                                sender.sendMessage("§c如果未收到，请检查邮箱的垃圾箱!");
+                            });
+                        } catch (Exception e) {
+                            Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> sender.sendMessage("§c发送邮件失败,服务器内部错误!"));
+                            e.printStackTrace();
+                        }
+                    });
+
+
                 } else {
                     sender.sendMessage("§c邮箱格式不正确!");
                 }
@@ -76,55 +94,37 @@ public class CommandBindEmail implements CommandExecutor {
                     String code = args[1];
                     if (bindEmail.getCode().equals(code)) {
                         sender.sendMessage("§e绑定邮箱中..");
-                        bindEmail(sender, lp, bindEmail);
+                        CatSeedLogin.instance.runTaskAsync(() -> {
+                            try {
+                                lp.setEmail(bindEmail.getEmail());
+                                CatSeedLogin.sql.edit(lp);
+                                Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> {
+                                    Player syncPlayer = Bukkit.getPlayer(((Player) sender).getUniqueId());
+                                    if (syncPlayer != null && syncPlayer.isOnline()) {
+                                        syncPlayer.sendMessage("§a邮箱已绑定 " + bindEmail.getEmail() + " 忘记密码时可以用邮箱重置自己的密码");
+                                        EmailCode.removeByName(name, EmailCode.Type.Bind);
+                                    }
+                                });
+
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                sender.sendMessage("§c服务器内部错误!");
+                            }
+                        });
+
                     } else {
                         sender.sendMessage("§c验证码错误!");
                     }
+
                 } else {
                     sender.sendMessage("§c你没有待绑定的邮箱，或者验证码已过期");
                 }
+
+
             }
             return true;
         }
 
         return true;
-    }
-
-    private void sendEmailCode(CommandSender sender, String name, String mail, EmailCode bindEmail) {
-        CatSeedLogin.instance.runTaskAsync(() -> {
-            try {
-                Mail.sendMail(mail, "邮箱绑定",
-                        "你的验证码是 <strong>" + bindEmail.getCode() + "</strong>" +
-                                "<br/>在服务器中使用帐号 " + name + " 输入指令<strong>/bindemail verify " + bindEmail.getCode() + "</strong> 来绑定邮箱" +
-                                "<br/>绑定邮箱之后可用于忘记密码时重置自己的密码" +
-                                "<br/>此验证码有效期为 " + (bindEmail.getDurability() / (1000 * 60)) + "分钟");
-                Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> {
-                    sender.sendMessage("§6已经向邮箱 " + mail + " 发送了一串绑定验证码，请检查你的邮箱的收件箱");
-                    sender.sendMessage("§c如果未收到，请检查邮箱的垃圾箱!");
-                });
-            } catch (Exception e) {
-                Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> sender.sendMessage("§c发送邮件失败,服务器内部错误!"));
-                e.printStackTrace();
-            }
-        });
-    }
-
-    private void bindEmail(CommandSender sender, LoginPlayer lp, EmailCode bindEmail) {
-        CatSeedLogin.instance.runTaskAsync(() -> {
-            try {
-                lp.setEmail(bindEmail.getEmail());
-                CatSeedLogin.sql.edit(lp);
-                Bukkit.getScheduler().runTask(CatSeedLogin.instance, () -> {
-                    Player syncPlayer = Bukkit.getPlayer(((Player) sender).getUniqueId());
-                    if (syncPlayer != null && syncPlayer.isOnline()) {
-                        syncPlayer.sendMessage("§a邮箱已绑定 " + bindEmail.getEmail() + " 忘记密码时可以用邮箱重置自己的密码");
-                        EmailCode.removeByName(lp.getName(), EmailCode.Type.Bind);
-                    }
-                });
-            } catch (Exception e) {
-                e.printStackTrace();
-                sender.sendMessage("§c服务器内部错误!");
-            }
-        });
     }
 }
